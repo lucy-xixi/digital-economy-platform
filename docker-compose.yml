@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  deip:
+    build: .
+    image: deip:latest
+    ports:
+      - "8501:8501"
+    environment:
+      - DEIP_USE_MOCK_LLM=true
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-sk-demo-placeholder-key}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - PYTHONPATH=/app
+    volumes:
+      - ./data:/app/data
+      - ./database:/app/database
+      - ./logs:/app/logs
+    restart: unless-stopped

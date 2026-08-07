@@ -1,0 +1,59 @@
+{
+  "report_ts": "2026-08-07T08:12:36.178857+00:00",
+  "total_rows": 40,
+  "total_columns": 8,
+  "completeness": {
+    "missing_by_column": {
+      "internet_penetration": 0,
+      "5g_users": 2,
+      "software_revenue": 3,
+      "ai_patents": 1,
+      "digital_payment": 0,
+      "ecommerce": 1
+    },
+    "missing_total": 7,
+    "completeness_rate": 0.9708
+  },
+  "uniqueness": {
+    "duplicate_keys": 0,
+    "is_unique": true
+  },
+  "coverage": {
+    "regions_found": [
+      "Beijing",
+      "Guangdong",
+      "Jiangsu",
+      "Shanghai",
+      "Zhejiang"
+    ],
+    "years_found": [
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025
+    ],
+    "missing_regions": [],
+    "expected_rows": 40,
+    "actual_rows": 40
+  },
+  "outliers": {
+    "outlier_by_column": {
+      "internet_penetration": 0,
+      "5g_users": 1,
+      "software_revenue": 2,
+      "ai_patents": 1,
+      "digital_payment": 0,
+      "ecommerce": 1
+    },
+    "outlier_total": 5
+  },
+  "quality_score": 95.94,
+  "status": "OK",
+  "summary": "Data Quality Report: score=95.94/100 (OK); rows=40; missing=7; outliers=5; duplicates=0",
+  "gate_passed": true,
+  "gate_reasons": []
+}

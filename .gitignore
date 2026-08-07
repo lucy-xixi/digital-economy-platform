@@ -1,0 +1,33 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment / secrets
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Logs & runtime DB
+logs/
+*.log
+database/deip.db
+
+# Generated lineage (reproducible via pipeline)
+data/processed/lineage/*.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/secrets.toml
