@@ -1,89 +1,195 @@
+
 # Digital Economy Intelligence Platform (DEIP)
 
-面向政府研究院与企业战略部门的**数字经济情报分析平台** Demo。  
+A portfolio prototype for digital-economy research and strategic analytics. The platform combines a governed data pipeline, statistical analysis, forecasting, causal-analysis components, and an AI-assisted research workflow.
 
----
+It is designed to demonstrate how analytical results can be produced, validated, traced, and presented through a reproducible workflow.
 
+> **Project status:** Independent portfolio prototype. The platform demonstrates engineering and analytical methods; it is not presented as a production deployment or as a source of verified real-world economic conclusions.
 
-| 维度 | 企业级信号 | 本仓库落点 |
-|------|------------|------------|
-| 数据工程 | 契约、硬门禁、幂等入库、run 血缘、CLI | `contracts/` · `QualityGate` · `DeipRepository` upsert · `PipelineContext` · `python -m src.cli` |
-| 统计分析 | 面板 within 相关、OLS 区间、回测、残差诊断、权重敏感性、**因果效应** | `correlation` · `forecasting` · `diagnostics` · `sensitivity` · **`causal_analysis`** |
-| AI 应用 | 工具调用、结构化输出、轻量 RAG、grounding 校验 | `ai_agent/tools.py` · `ResearchBrief` · `docs/methodology.md` |
-| 工程完备 | 类型提示、日志、Docker、pytest 不变量 | `tests/test_pipeline.py` · `Dockerfile` |
+## Overview
 
----
+DEIP addresses a common analytical workflow: transforming multi-source industry indicators into validated datasets, statistical outputs, and research-oriented summaries.
 
-## 架构
+The implementation emphasizes four areas:
 
-```
+1. **Data engineering:** Data contracts, hard quality gates, idempotent database writes, and run-level lineage.
+2. **Statistical analysis:** Panel correlation, OLS prediction intervals, walk-forward evaluation, residual diagnostics, weight sensitivity, and causal-analysis components.
+3. **AI-assisted research:** Tool calling, structured output, lightweight methodology retrieval, and evidence-grounding checks.
+4. **Engineering discipline:** Type hints, logging, Docker support, and automated tests.
+
+## Architecture
+
+```text
 CLI / Streamlit
-      │
-      ▼
-PipelineContext(run_id) ──► lineage/<run_id>.json
-      │
-      ├─ ingest ── contract(raw)
-      ├─ validate ── HARD GATE ──► data_quality_reports
-      ├─ clean ── contract(clean)
-      ├─ compute DEI ── contract(dei)
-      ├─ upsert SQLite (ON CONFLICT, transactional)
-      └─ analytics warm-up (panel / OLS-PI / backtest / sensitivity)
-                │
-                ▼
-        Tool-grounded Research Agent
-        (trend · corr · forecast · diagnostics · sensitivity · methodology)
+      |
+      v
+PipelineContext(run_id) ----> lineage/<run_id>.json
+      |
+      +--> Ingest --> Raw data contract
+      |
+      +--> Validate --> Hard quality gate --> Quality reports
+      |
+      +--> Clean --> Clean-data contract
+      |
+      +--> Compute DEI --> DEI contract
+      |
+      +--> Transactional SQLite upsert
+      |
+      +--> Analytics warm-up
+             |-- Panel correlation
+             |-- OLS prediction intervals
+             |-- Walk-forward backtesting
+             |-- Residual diagnostics
+             |-- Weight sensitivity
+      |
+      v
+Tool-grounded Research Agent
 ```
 
-**DEI 权重：** Infrastructure 30% · Industry 30% · AI Innovation 20% · Application 20%
+## Key Features
 
----
+### Data pipeline and governance
 
-## 快速开始
+- Validates raw, cleaned, and Digital Economy Index (DEI) data against explicit contracts.
+- Applies a hard data-quality gate before downstream processing.
+- Uses SQLite upsert operations with conflict handling and transactions.
+- Records run identifiers and lineage artifacts.
+- Tracks stage durations, output hashes, and configuration hashes.
+
+### Statistical analysis
+
+- Compares pooled Pearson correlation with within-group correlation after removing regional means.
+- Fits OLS models with 95% prediction intervals.
+- Uses walk-forward evaluation for one-step-ahead forecast errors.
+- Runs residual diagnostics, including Durbin–Watson, Jarque–Bera, and Breusch–Pagan tests where applicable.
+- Evaluates ranking stability under ±10% changes to DEI component weights.
+- Includes a DoWhy backdoor-analysis workflow for the relationship between AI innovation and DEI, with confidence intervals and a `dei_ex_ai` robustness variant.
+- Supports an optional EconML LinearDML component.
+
+### AI-assisted research
+
+- Executes analytical tools before assembling a structured `ResearchBrief`.
+- Uses Pydantic-based structured output.
+- Includes lightweight keyword-based retrieval from `docs/methodology.md`.
+- Checks that key numerical findings are supported by the evidence supplied to the research brief.
+- Keeps the AI layer separate from the underlying statistical calculations.
+
+## Digital Economy Index
+
+The current DEI configuration uses the following component weights:
+
+| Component | Weight |
+|---|---:|
+| Infrastructure | 30% |
+| Industry | 30% |
+| AI Innovation | 20% |
+| Application | 20% |
+
+These weights are configurable analytical assumptions, not an externally validated universal standard.
+
+## Quick Start
+
+From the repository root:
 
 ```bash
-cd digital-economy-platform
 python -m venv .venv
-# Windows: .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+```
 
-python -m src.cli run                 # 全链路 + 门禁 + 血缘
-python -m src.cli validate            # 仅质检门禁
-python -m src.cli forecast            # OLS 预测区间 + walk-forward
-python -m src.cli causal              # AI→DEI 因果效应 + 置信区间
-python -m src.cli report "分析未来数字经济趋势"
+Activate the environment:
+
+```powershell
+# Windows PowerShell
+.\.venv\Scripts\Activate.ps1
+```
+
+```bash
+# macOS / Linux
+source .venv/bin/activate
+```
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+### Run the pipeline
+
+```bash
+# End-to-end pipeline, quality gates, and lineage
+python -m src.cli run
+
+# Run data-quality validation only
+python -m src.cli validate
+
+# Forecasting with OLS prediction intervals and walk-forward evaluation
+python -m src.cli forecast
+
+# Causal-analysis workflow
+python -m src.cli causal
+
+# Generate a research-oriented report
+python -m src.cli report "Analyze future digital-economy trends"
+
+# Launch the dashboard
 streamlit run dashboard/app.py
+```
+
+### Run tests
+
+```bash
 pytest tests/ -v
 ```
 
-Docker：`docker compose up --build`
+### Run with Docker
 
----
+```bash
+docker compose up --build
+```
 
-## 关键设计说明
+## Engineering Design Details
 
-### 数据工程
-- **Contract `metrics_v1`**：raw / clean / DEI 三阶段列、唯一键、值域校验；失败抛 `ContractViolationError`
-- **Hard DQ Gate**：分数、缺失率、重复键、地区覆盖不达标则 `QualityGateError` 阻断下游
-- **Upsert**：`INSERT … ON CONFLICT DO UPDATE`，写入绑定 `run_id`（告别 truncate-reload 叙事）
-- **Lineage**：阶段耗时、产物 SHA256、config_hash → `data/processed/lineage/`
+### Data contracts and quality gates
 
-### 统计分析
-- **Pooled vs Within** Pearson（地区去均值，接近固定效应直觉）
-- **statsmodels OLS** + **95% prediction interval** + Durbin–Watson
-- **Walk-forward** 一步超前 MAE
-- **Jarque–Bera / Breusch–Pagan** 残差诊断
-- **权重 ±10%** 敏感性 → Spearman 排名稳定性
-- **因果分析**：DoWhy backdoor（AI Innovation → DEI）+ 置信区间；`dei_ex_ai` 溢出稳健性；可选 EconML LinearDML
+The `metrics_v1` contract defines expected fields, unique keys, and value-range constraints for raw, cleaned, and DEI data. Contract violations raise an error rather than silently passing invalid data downstream.
 
-### AI
-- Agent 先跑 **tools**，再组装 **`ResearchBrief`（Pydantic）**
-- Mock 路径仍引用真实工具数字（可 eval）
-- `retrieve_methodology`：基于 `docs/methodology.md` 的关键词检索（可审计的轻量 RAG）
-- Grounding：关键数字须出现在 findings evidence
+The quality gate checks configured quality conditions, including scores, missingness, duplicate keys, and regional coverage.
 
----
+### Idempotent writes and lineage
 
+The SQLite repository uses `INSERT ... ON CONFLICT DO UPDATE` semantics within a transaction. Run identifiers connect pipeline executions to their lineage records.
+
+Lineage artifacts are stored under:
+
+```text
+data/processed/lineage/
+```
+
+### Statistical diagnostics and sensitivity
+
+The analytical workflow includes prediction intervals, forecast backtesting, residual diagnostics, and sensitivity analysis. These checks help communicate model limitations and the stability of analytical rankings rather than treating a single model output as definitive.
+
+## Technology Stack
+
+- Python
+- pandas, NumPy
+- statsmodels
+- DoWhy and optional EconML
+- SQLite
+- Streamlit
+- Pydantic
+- pytest
+- Docker
+
+## Validation and Limitations
+
+- The analysis depends on the quality, coverage, and assumptions of the supplied indicator data.
+- Correlations and regression coefficients do not by themselves establish causality.
+- Causal estimates require defensible assumptions about confounding and model specification.
+- DEI component weights are configurable and should be assessed for sensitivity.
+- AI-generated summaries are intended to communicate computed findings, not replace the underlying calculations or independent review.
 
 ## License
 
-MIT — Demo / educational use.
+MIT. See `LICENSE` for details.

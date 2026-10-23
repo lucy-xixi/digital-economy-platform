@@ -303,6 +303,28 @@ def page_ai_impact(metrics: pd.DataFrame, dei: pd.DataFrame) -> None:
     st.dataframe(diagnose_region_trend(dei), use_container_width=True, hide_index=True)
 
 
+def _sanitize_nav_state(key: str, options: list[str]) -> None:
+    """
+    Fix Streamlit radio session-state corruption across versions.
+
+    Some Streamlit builds deserialize radio by integer index; if the saved value is a
+    string label (or other type), you get:
+    ``TypeError: list indices must be integers or slices, not str``.
+    """
+    if key not in st.session_state:
+        return
+    val = st.session_state[key]
+    if isinstance(val, str) and val in options:
+        # Index-based deserializers need an int; convert label → index.
+        st.session_state[key] = options.index(val)
+        return
+    if isinstance(val, (int, float)) and int(val) == val and 0 <= int(val) < len(options):
+        st.session_state[key] = int(val)
+        return
+    # Corrupted / incompatible — drop and let Streamlit re-init
+    del st.session_state[key]
+
+
 def page_causal(dei: pd.DataFrame) -> None:
     """Page — causal effect of AI Innovation on DEI (human-readable)."""
     from src.causal_analysis.report import format_causal_report, robustness_table
@@ -320,16 +342,18 @@ def page_causal(dei: pd.DataFrame) -> None:
         outcome = st.selectbox(
             "结果变量",
             ["dei", "dei_ex_ai"],
+            key="causal_outcome",
             format_func=lambda x: (
                 "DEI（综合指数）" if x == "dei" else "dei_ex_ai（剔除 AI 后的溢出效应）"
             ),
         )
     with col_b:
-        binary = st.checkbox("二值处理：AI ≥ 中位数", value=False)
+        binary = st.checkbox("二值处理：AI ≥ 中位数", value=False, key="causal_binary")
     with col_c:
         engine = st.selectbox(
             "估计引擎",
             ["dowhy", "statsmodels", "econml"],
+            key="causal_engine",
             format_func=lambda x: {
                 "dowhy": "DoWhy（推荐）",
                 "statsmodels": "OLS + Bootstrap",
@@ -337,10 +361,8 @@ def page_causal(dei: pd.DataFrame) -> None:
             }[x],
         )
 
-    auto = st.checkbox("打开页面自动估计", value=True)
-
-    should_run = auto or st.button("开始估计因果效应", type="primary")
-    if not should_run:
+    run_clicked = st.button("开始估计因果效应", type="primary", key="causal_run")
+    if not run_clicked and "causal_result" not in st.session_state:
         st.markdown(
             """
             **你会看到什么**
@@ -352,18 +374,28 @@ def page_causal(dei: pd.DataFrame) -> None:
         )
         return
 
-    with st.spinner("正在识别因果图并估计效应与置信区间…"):
-        result = estimate_ai_effect_on_dei(
-            dei,
-            outcome=outcome,
-            binary_treatment=binary,
-            prefer_engine=engine,
-            n_boot=300,
-        )
+    if run_clicked:
+        with st.spinner("正在识别因果图并估计效应与置信区间…"):
+            try:
+                st.session_state["causal_result"] = estimate_ai_effect_on_dei(
+                    dei,
+                    outcome=outcome,
+                    binary_treatment=binary,
+                    prefer_engine=engine,
+                    n_boot=200,
+                )
+            except Exception as exc:
+                logger.exception("Causal estimation failed")
+                st.error(f"因果估计失败：{exc}")
+                return
+
+    result = st.session_state.get("causal_result")
+    if not result:
+        return
+
     primary = result["primary"]
     level = int(float(primary.get("confidence_level", 0.95)) * 100)
 
-    # KPI strip in Chinese
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("因果效应（点估计）", f"{primary['effect']:.4f}")
     m2.metric(f"{level}% 区间下限", f"{primary['ci_low']:.4f}")
@@ -374,10 +406,8 @@ def page_causal(dei: pd.DataFrame) -> None:
         help="置信区间是否包含 0",
     )
 
-    # Plain-language report
     st.markdown(format_causal_report(result, lang="zh"))
 
-    # Forest plot with Chinese labels
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
@@ -443,6 +473,17 @@ def page_research(_metrics: pd.DataFrame, _dei: pd.DataFrame) -> None:
 
 def main() -> None:
     """Dashboard entrypoint."""
+    nav_pages = [
+        "Home",
+        "Digital Economy Overview",
+        "Indicator Analysis",
+        "AI Impact Analysis",
+        "Causal Analysis",
+        "Research Assistant",
+    ]
+    nav_key = "deip_page_nav_v3"
+    _sanitize_nav_state(nav_key, nav_pages)
+
     try:
         metrics, dei = load_datasets()
     except Exception as exc:
@@ -450,20 +491,34 @@ def main() -> None:
         st.stop()
 
     st.sidebar.title("DEIP Navigation")
-    page = st.sidebar.radio(
-        "Go to",
-        [
-            "Home",
-            "Digital Economy Overview",
-            "Indicator Analysis",
-            "AI Impact Analysis",
-            "Causal Analysis",
-            "Research Assistant",
-        ],
+    page_idx = st.sidebar.radio(
+        "页面导航",
+        options=list(range(len(nav_pages))),
+        format_func=lambda i: nav_pages[i],
+        key=nav_key,
     )
+    # After sanitize, key may hold int index; radio with int options is version-safe.
+    if isinstance(page_idx, str) and page_idx in nav_pages:
+        page = page_idx
+    else:
+        page = nav_pages[int(page_idx)]
+
     st.sidebar.markdown("---")
     st.sidebar.caption(f"Project root: `{PROJECT_ROOT.name}`")
     st.sidebar.caption(f"Rows: metrics={len(metrics)} · DEI={len(dei)}")
+    py_exe = sys.executable.replace("\\", "/")
+    if "anaconda" in py_exe.lower() or "conda" in py_exe.lower():
+        st.sidebar.warning(
+            "当前正用 Conda base 跑 Streamlit。建议：\n"
+            "`.\\.venv\\Scripts\\Activate.ps1`\n"
+            "再执行 `streamlit run dashboard/app.py`"
+        )
+
+    if st.sidebar.button("清除页面缓存 / 修复异常状态"):
+        for k in list(st.session_state.keys()):
+            del st.session_state[k]
+        st.cache_data.clear()
+        st.rerun()
 
     routes = {
         "Home": lambda: page_home(metrics, dei),
